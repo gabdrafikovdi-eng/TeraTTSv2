@@ -28,9 +28,17 @@ from transformers import AutoModel
 
 MODEL_ID = os.getenv("TERATTS_MODEL_ID", "TeraSpace/TeraTTSv2")
 REVISION = os.getenv("TERATTS_REVISION") or None
-THREADS = int(os.getenv("TERATTS_THREADS", str(max(1, (os.cpu_count() or 1) // 2))))
 SAMPLE_RATE = 44_100
 LOGGER = logging.getLogger(__name__)
+
+
+def env_int(name: str, default: int) -> int:
+    """Целое из переменной окружения; пустое значение считаем «не задано»."""
+    raw = os.getenv(name, "").strip()
+    return int(raw) if raw else default
+
+
+THREADS = env_int("TERATTS_THREADS", max(1, (os.cpu_count() or 1) // 2))
 
 VOICES = [
     ("★ Best: Russian female 1", "ru_f1"),

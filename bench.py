@@ -60,6 +60,12 @@ PRESETS: dict[str, str] = {
 }
 
 
+def env_int(name: str, default: int) -> int:
+    """Целое из переменной окружения; пустое значение считаем «не задано»."""
+    raw = os.getenv(name, "").strip()
+    return int(raw) if raw else default
+
+
 def percentile(values: list[float], quantile: float) -> float:
     """Линейная квантиль (как numpy.percentile с интерполяцией)."""
     if not values:
@@ -671,7 +677,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--threads",
         type=int,
-        default=int(os.getenv("TERATTS_THREADS", str(max(1, (os.cpu_count() or 1) // 2)))),
+        default=env_int("TERATTS_THREADS", max(1, (os.cpu_count() or 1) // 2)),
         help="Потоков onnxruntime",
     )
     parser.add_argument("--stream", action="store_true", help="В latency измерять TTFC через стриминг")

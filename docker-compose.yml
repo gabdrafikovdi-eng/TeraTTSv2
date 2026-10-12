@@ -12,18 +12,21 @@ services:
     # Сценарий по умолчанию: диалог такси-диспетчера + отчёт в ./out/bench.json
     command: ["bench.py", "--runs", "3", "--warmup", "1", "--json", "out/bench.json"]
     environment:
-      TERATTS_THREADS: "${TERATTS_THREADS:-4}"
-      OMP_NUM_THREADS: "${TERATTS_THREADS:-4}"
-      # HF_TOKEN: "${HF_TOKEN:-}"   # если упёрлись в лимиты загрузок Hugging Face
+      # Пробрасываем переменные хоста в контейнер (если не заданы — берутся дефолты кода)
+      - TERATTS_THREADS
+      - OMP_NUM_THREADS
+      - TERATTS_REVISION
+      - HF_TOKEN
     volumes:
       - hf-cache:/models      # кэш модели (скачивается один раз)
       - ./out:/app/out        # отчёты JSON наружу
-    # uid/gid для записи в bind-mount ./out: на типичном Linux-VPS uid=1000 совпадает
-    # с пользователем внутри образа. Если uid другой — задайте TERATTS_UID/TERATTS_GID.
+    # uid/gid контейнера = uid/gid владельца папки out, чтобы отчёт точно записался.
+    # Под root это 0:0, под обычным пользователем — 1000:1000.
+    # Проще всего запускать через ./bench.sh — он подставляет значения автоматически.
     user: "${TERATTS_UID:-1000}:${TERATTS_GID:-1000}"
-    cpus: 4
-    mem_limit: 6g
-    # Для теста конкуренции нужна память под N копий модели:
+    # Лимиты CPU/RAM не заданы: контейнер использует все ядра VPS (это и есть честный замер).
+    # Ограничить можно при запуске, например:
+    #   docker compose run --rm --cpus 2 --memory 3g bench
     #   docker compose run --rm --memory 12g bench bench.py --scenario none --concurrency 3
 
   demo:
@@ -31,13 +34,12 @@ services:
     image: terattsv2:latest
     command: ["app.py", "--host", "0.0.0.0", "--port", "7860"]
     environment:
-      TERATTS_THREADS: "${TERATTS_THREADS:-4}"
+      - TERATTS_THREADS
+      - OMP_NUM_THREADS
     volumes:
       - hf-cache:/models
     ports:
       - "7860:7860"
-    cpus: 4
-    mem_limit: 4g
     restart: unless-stopped
 
 volumes:
