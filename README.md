@@ -122,13 +122,14 @@ docker compose run --rm bench
 Размер образа без модели ~1.9 ГБ; можно «запечь» модель внутрь:
 `docker build --build-arg PRELOAD=1 -t terattsv2:latest .`
 
-Права на `./out`: контейнер работает под uid 1000, поэтому каталог должен принадлежать
-uid 1000 (на типичном VPS это и есть ваш пользователь). Если uid другой — либо
-`sudo chown 1000:1000 out`, либо пересоберите образ под себя:
-`docker build --build-arg UID=$(id -u) -t terattsv2:latest .`.
-В Docker Desktop (macOS/Windows) монтирование мапится на root — там запускайте
-`TERATTS_UID=0 TERATTS_GID=0 docker compose run --rm bench`. Если JSON всё же не
-записался, скрипт не падает: все цифры уже напечатаны в консоли.
+Права на `./out`: контейнер работает под uid 1000, а на Linux bind-mount сохраняет
+владельца — на типичном VPS первый пользователь и имеет uid 1000, поэтому всё работает
+сразу. Если uid другой (или папку создал `sudo`), выполните `sudo chown 1000:1000 out`
+либо пересоберите образ под себя: `docker build --build-arg UID=$(id -u) -t terattsv2:latest .`.
+В Docker Desktop (macOS/Windows) доступ к папке отображается на пользователя хоста,
+поэтому ничего настраивать не нужно — но проект должен лежать в «расшаренном» пути
+(`$HOME`), а не в `/tmp`. Если JSON всё же не записался, скрипт не падает: все цифры
+уже напечатаны в консоли.
 
 ### 4.3. Команды для разных вопросов
 
@@ -150,7 +151,7 @@ docker compose run --rm bench bench.py --scenario latency --stream --preset all
 docker compose run --rm --network host bench bench.py --scenario latency --url http://127.0.0.1:7860
 ```
 
-### 4.3. Как читать цифры
+### 4.4. Как читать цифры
 
 | Метрика | Что значит | Ориентир для телефонии |
 | --- | --- | --- |
@@ -210,7 +211,8 @@ print(tts.normalize_text("<ru>У меня 21 яблоко.</ru>"))
 | Порт 7860 занят | `--port 7861` |
 | Много RAM | `--stress-mode dictionary`, `TERATTS_THREADS=4`, не открывайте `teacher`-сэмплер |
 | Долгая загрузка/низкий xRT в Docker на Mac/Windows | Лимиты Docker VM (`--cpus/--memory`), а не VPS: замеряйте на самом сервере |
-| `Permission denied` при bind-mount кэша модели с хоста | Используйте named volume `hf-cache` или добавьте `user: "$(id -u):$(id -g)"` в compose |
+| `Permission denied` при записи в `./out` | Папка принадлежит root (создана через `sudo`/Docker): `sudo chown 1000:1000 out` или задайте `TERATTS_UID=$(id -u)` |
+| Файлы bind-mount не видны в контейнере (macOS) | Путь вне «расшаренных» каталогов Docker Desktop (например `/tmp`) — перенесите проект в `$HOME` |
 | Сборка образа качает CUDA-колёса | Уберите `--index-url https://download.pytorch.org/whl/cpu` только если нужен CUDA (по умолчанию он уже стоит) |
 | Ошибка о тегах | Текст не обёрнут в `<ru>`/`<en>` или теги не сбалансированы |
 
