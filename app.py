@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import logging
 import os
 import unicodedata
@@ -48,6 +49,12 @@ CSS = """
 #col-container { max-width: 900px; margin: 0 auto; }
 .dark .gradio-container { color: var(--body-text-color); }
 """
+
+# В Gradio 6 theme/css переехали из Blocks() в launch(); в Gradio 5 — наоборот.
+# Определяем нужный вариант по сигнатуре, чтобы демо работало на обеих версиях.
+STYLE = {"theme": gr.themes.Citrus(), "css": CSS}
+STYLE_IN_LAUNCH = {"theme", "css"} <= set(inspect.signature(gr.Blocks.launch).parameters)
+
 
 
 @lru_cache(maxsize=2)
@@ -94,7 +101,7 @@ def synthesize(
     return (SAMPLE_RATE, waveform), unicodedata.normalize("NFC", normalized_text)
 
 
-with gr.Blocks(theme=gr.themes.Citrus(), css=CSS, title="TeraTTSv2") as demo:
+with gr.Blocks(title="TeraTTSv2", **(STYLE if not STYLE_IN_LAUNCH else {})) as demo:
     with gr.Column(elem_id="col-container"):
         gr.Markdown(
             """
@@ -196,6 +203,7 @@ def main() -> None:
         server_port=args.port,
         share=args.share,
         inbrowser=args.host in {"127.0.0.1", "localhost"},
+        **(STYLE if STYLE_IN_LAUNCH else {}),
     )
 
 
