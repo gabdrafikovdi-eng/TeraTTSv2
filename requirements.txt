@@ -1,0 +1,13 @@
+# Зависимости модели TeraSpace/TeraTTSv2 (см. model card на Hugging Face)
+numpy>=1.24
+num2words>=0.5.13
+onnxruntime>=1.16
+torch>=2.1
+transformers>=4.40
+huggingface_hub>=0.23
+
+# Локальное веб-демо (Gradio)
+gradio>=5.0
+
+# Опционально: воспроизведение звука напрямую (только для cli.py --play)
+# sounddevice>=0.5

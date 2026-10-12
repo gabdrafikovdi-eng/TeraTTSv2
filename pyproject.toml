@@ -1,0 +1,19 @@
+[project]
+name = "terattsv2"
+version = "0.1.0"
+description = "Локальный запуск и веб-демо TeraSpace/TeraTTSv2 (ONNX Runtime TTS)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "huggingface_hub>=0.23",
+    "num2words>=0.5.13",
+    "numpy>=1.24",
+    "onnxruntime>=1.16",
+    "torch>=2.1",
+    "transformers>=4.40",
+]
+
+[dependency-groups]
+demo = ["gradio>=5.0"]
+dev = ["sounddevice>=0.5"]
+
