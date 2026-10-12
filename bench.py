@@ -149,16 +149,18 @@ class StreamRun:
         return [second - first for first, second in zip(self.marks, self.marks[1:])]
 
     def margins(self) -> list[float]:
-        """Запас реального времени к моменту прихода чанка, с.
+        """Запас буфера в секундах: сколько аудио уже готово минус сколько уже играется.
 
-        margin = накопленное аудио минус время ожидания этого чанка.
-        Отрицательный запас = провал в трубке, если играть сразу после TTFC.
+        Воспроизведение стартует с первым чанком (t = marks[0]), поэтому отсчёт идёт
+        от него: margin = накопленное аудио − (время прихода чанка − ttfc).
+        Отрицательное значение = провал (underrun), если играть сразу после TTFC.
         """
+        playback_start = self.marks[0]
         margins: list[float] = []
         accumulated = 0.0
         for index, (mark, samples) in enumerate(zip(self.marks, self.samples)):
             if index:
-                margins.append(accumulated - mark)
+                margins.append(accumulated - (mark - playback_start))
             accumulated += samples / SAMPLE_RATE
         return margins
 
@@ -253,7 +255,8 @@ def print_stream_table(rows: list[dict]) -> None:
             f"{_num(row['gap_max_ms'], 0):>13}{_num(row['margin_min_ms'], 0):>13}"
             f"{_num(row['rtf'], 3):>7}{_num(row['xrt'], 2):>7}"
         )
-    print("TTFC — задержка до первого звука; «запас min» ≥ 0 → воспроизведение без провалов;")
+    print("TTFC — задержка до первого звука; «запас min» — свободный буфер при воспроизведении,")
+    print("если начать его с первым чанком (≥0 → речь идёт без провалов);")
     print("RTF = генерация/аудио (<1 — быстрее реального времени); xRT = секунд речи на секунду CPU.")
 
 
@@ -274,6 +277,11 @@ def print_dispatch_summary(
     print(f"Реплик: {len(rows)} | аудио: {audio_total:.2f} с | генерация: {synth_total:.2f} с")
     print(f"Общий RTF: {synth_total / audio_total:.3f} | xRT: {xrt:.2f}")
     print(f"TTFC, мс: min {min(ttfc):.0f} | p50 {percentile(ttfc, 0.5):.0f} | max {max(ttfc):.0f}")
+    margins = [row["margin_min_ms"] for row in rows if row.get("margin_min_ms") is not None]
+    if margins:
+        worst = min(margins)
+        verdict = "провалов в речи нет" if worst >= 0 else f"возможны паузы до {-worst:.0f} мс"
+        print(f"Худший запас буфера: {worst:.0f} мс → {verdict}")
 
     print()
     print("=== Бюджет задержки до первого звука ===")
@@ -307,12 +315,14 @@ def print_latency_table(rows: list[dict]) -> None:
 
 
 def print_sweep_table(title: str, rows: list[dict], key: str, key_title: str) -> None:
+    """Таблица sweep-прогона; ширина колонки ключа подстраивается под значения."""
+    width = max(8, len(key_title), *(len(str(row[key])) for row in rows))
     print()
     print(f"=== {title} ===")
-    print(f"{key_title:>8}{'загрузка,с':>12}{'TTFC p50,мс':>13}{'синтез,p50,с':>13}{'xRT':>7}")
+    print(f"{key_title:>{width}}{'загрузка,с':>12}{'TTFC p50,мс':>13}{'синтез,p50,с':>13}{'xRT':>7}")
     for row in rows:
         print(
-            f"{row[key]:>8}{row['load_seconds']:>12.1f}{_num(row['ttfc_p50_ms'], 0):>13}"
+            f"{str(row[key]):>{width}}{row['load_seconds']:>12.1f}{_num(row['ttfc_p50_ms'], 0):>13}"
             f"{row['synth_p50_s']:>13.3f}{_num(row['xrt'], 2):>7}"
         )
 
@@ -514,6 +524,38 @@ def sweep_threads(args) -> list[dict]:
     return rows
 
 
+def sweep_stress_modes(args) -> list[dict]:
+    """Сравнить режимы русских ударений: сколько TTFC «стоит» нейросеть RUAccent."""
+    text = max(DISPATCH_LINES, key=len)
+    rows: list[dict] = []
+    for mode in ("full", "dictionary", "off"):
+        model, load_seconds = load_model(
+            threads=args.threads,
+            stress_mode=mode,
+            diffusion_model=args.diffusion_model,
+            local_files_only=args.offline,
+        )
+        for _ in range(max(1, args.warmup)):
+            synth_stream(model, text, args.voice, duration_scale=args.duration_scale, chunk_frames=args.chunk_frames)
+        runs = [
+            synth_stream(model, text, args.voice, duration_scale=args.duration_scale, chunk_frames=args.chunk_frames)
+            for _ in range(args.runs)
+        ]
+        stats = summarize_runs("stress", text, runs, load_seconds=load_seconds, chunk_frames=args.chunk_frames)
+        stats["stress_mode"] = mode
+        rows.append(stats)
+        del model
+        gc.collect()
+    print_sweep_table(
+        "Влияние режима русских ударений на TTFC (самая длинная реплика диалога)",
+        rows,
+        "stress_mode",
+        "режим",
+    )
+    print("full — нейросеть RUAccent + словари; dictionary — только словари; off — выключено.")
+    return rows
+
+
 def sweep_chunk_frames(args) -> list[dict]:
     """Как chunk_frames влияет на TTFC и паузы (на самой длинной реплике диалога)."""
     text = max(DISPATCH_LINES, key=len)
@@ -685,6 +727,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--concurrency", type=int, default=0, help="Число одновременных звонков, >1 включает тест")
     parser.add_argument("--sweep-threads", default=None, help="Подбор потоков, напр. 1,2,4,8")
     parser.add_argument("--sweep-chunk-frames", default=None, help="Подбор chunk_frames, напр. 16,8,4")
+    parser.add_argument(
+        "--sweep-stress-modes",
+        action="store_true",
+        help="Сравнить режимы ударений full/dictionary/off по TTFC",
+    )
     parser.add_argument("--duty-cycle", type=float, default=0.5, help="Доля речи в звонке для оценки ёмкости VPS")
     parser.add_argument("--budget-ms", type=float, default=500.0, help="Бюджет задержки до первого звука, мс")
     parser.add_argument("--network-ms", type=float, default=50.0, help="Оценка сети+телефонии для бюджета, мс")
@@ -729,6 +776,8 @@ def main() -> None:
         report["sweep_threads"] = sweep_threads(args)
     if args.sweep_chunk_frames:
         report["sweep_chunk_frames"] = sweep_chunk_frames(args)
+    if args.sweep_stress_modes:
+        report["sweep_stress_modes"] = sweep_stress_modes(args)
 
     if args.scenario == "dispatch":
         report["dispatch"] = bench_dispatch(args)
