@@ -1,0 +1,41 @@
+# Запуск на VPS:
+#   docker compose build
+#   docker compose run --rm bench                      # бенчмарк диалога диспетчера
+#   docker compose run --rm bench bench.py --runs 5 --warmup 2 --concurrency 2
+#   docker compose up -d demo                          # веб-демо на http://VPS_IP:7860
+#
+# Подстройте cpus/mem_limit под свой VPS (по умолчанию 4 CPU / 6 ГБ).
+services:
+  bench:
+    build: .
+    image: terattsv2:latest
+    # Сценарий по умолчанию: диалог такси-диспетчера + отчёт в ./out/bench.json
+    command: ["bench.py", "--runs", "3", "--warmup", "1", "--json", "out/bench.json"]
+    environment:
+      TERATTS_THREADS: "${TERATTS_THREADS:-4}"
+      OMP_NUM_THREADS: "${TERATTS_THREADS:-4}"
+      # HF_TOKEN: "${HF_TOKEN:-}"   # если упёрлись в лимиты загрузок Hugging Face
+    volumes:
+      - hf-cache:/models      # кэш модели (скачивается один раз)
+      - ./out:/app/out        # отчёты JSON наружу
+    cpus: 4
+    mem_limit: 6g
+    # Для теста конкуренции нужна память под N копий модели:
+    #   docker compose run --rm --memory 12g bench bench.py --scenario none --concurrency 3
+
+  demo:
+    build: .
+    image: terattsv2:latest
+    command: ["app.py", "--host", "0.0.0.0", "--port", "7860"]
+    environment:
+      TERATTS_THREADS: "${TERATTS_THREADS:-4}"
+    volumes:
+      - hf-cache:/models
+    ports:
+      - "7860:7860"
+    cpus: 4
+    mem_limit: 4g
+    restart: unless-stopped
+
+volumes:
+  hf-cache:

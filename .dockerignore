@@ -1,0 +1,12 @@
+.venv
+.git
+.gitignore
+__pycache__
+*.pyc
+*.wav
+out
+uv.lock
+docker-compose.yml
+.dockerignore
+Dockerfile
+README.md
