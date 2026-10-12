@@ -312,8 +312,16 @@ def print_sweep_table(title: str, rows: list[dict], key: str, key_title: str) ->
 
 
 def write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    """Сохранить отчёт; проблемы с правами не должны «убивать» уже собранные цифры."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as error:
+        print(f"\nНе удалось записать JSON: {error}")
+        print("В Docker с bind-mount './out' папку нужно создать заранее (иначе Docker")
+        print("создаст её от root и uid 1000 внутри контейнера не сможет писать):")
+        print("  mkdir -p out && sudo chown 1000:1000 out")
+        return
     print(f"\nJSON-отчёт: {path}")
 
 

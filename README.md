@@ -72,13 +72,38 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-## 4. Замер задержки на VPS (Docker)
+## 4. Развёртывание и замер задержки на VPS (Docker)
 
-Для телефонного диспетчера главная метрика — **TTFC** (time to first chunk): сколько
-миллисекунд бот молчит перед первой фразой. `bench.py` меряет TTFC на реальных репликах
-диалога, паузы между чанками, «запас реального времени» и оценивает ёмкость сервера.
+Репозиторий публичный: <https://github.com/gabdrafikovdi-eng/TeraTTSv2.git> — на сервере
+достаточно `git clone`, ничего копировать вручную не нужно.
 
-### 4.1. Сборка и запуск
+### 4.1. Клонирование и установка Docker
+
+```bash
+# 1. Docker (Ubuntu/Debian, один раз)
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker "$USER"   # и перелогиниться, чтобы работать без sudo
+
+# 2. Отдельная папка под проект
+sudo mkdir -p /opt && sudo chown "$USER" /opt
+cd /opt
+
+# 3. Клонировать публичный репозиторий
+git clone https://github.com/gabdrafikovdi-eng/TeraTTSv2.git
+cd TeraTTSv2
+
+# 4. Папка для отчётов: Docker создаёт её от root, если её нет,
+#    и тогда uid 1000 внутри контейнера не сможет писать JSON
+mkdir -p out && chmod 777 out
+```
+
+Обновление до последней версии с GitHub:
+
+```bash
+cd /opt/TeraTTSv2 && git pull && docker compose build
+```
+
+### 4.2. Сборка и запуск
 
 ```bash
 docker build -t terattsv2:latest .
@@ -92,9 +117,11 @@ docker compose run --rm bench
 ```
 
 Первый запуск скачивает модель (~1.2 ГБ) в volume `hf-cache`, дальше — мгновенно.
-Размер образа без модели ~1.5 ГБ; можно «запечь» модель внутрь: `docker build --build-arg PRELOAD=1 -t terattsv2:latest .`
+Повторные запуски можно делать без сети: добавьте `--offline` (`local_files_only`).
+Размер образа без модели ~1.9 ГБ; можно «запечь» модель внутрь:
+`docker build --build-arg PRELOAD=1 -t terattsv2:latest .`
 
-### 4.2. Команды для разных вопросов
+### 4.3. Команды для разных вопросов
 
 ```bash
 # 1. TTFC на диалоге + разбор бюджета задержки (бюджет 400 мс, сеть/телефония 80 мс)
