@@ -20,6 +20,7 @@ services:
     volumes:
       - hf-cache:/models      # кэш модели (скачивается один раз)
       - ./out:/app/out        # отчёты JSON наружу
+      - ./:/data:ro           # доступ к своим файлам фраз: --text-file /data/phrases.txt
     # uid/gid контейнера = uid/gid владельца папки out, чтобы отчёт точно записался.
     # Под root это 0:0, под обычным пользователем — 1000:1000.
     # Проще всего запускать через ./bench.sh — он подставляет значения автоматически.
@@ -30,7 +31,8 @@ services:
     #   docker compose run --rm --memory 12g bench bench.py --scenario none --concurrency 3
 
   demo:
-    build: .
+    # Образ собирается сервисом bench (docker compose build); здесь только используется.
+    # Дублировать build: . нельзя — compose будет собирать один тег дважды и они гонятся.
     image: terattsv2:latest
     command: ["app.py", "--host", "0.0.0.0", "--port", "7860"]
     environment:

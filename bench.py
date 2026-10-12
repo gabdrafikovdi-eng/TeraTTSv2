@@ -342,9 +342,19 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def resolve_presets(args) -> list[tuple[str, str]]:
-    """Тексты для сценария latency: --text, либо пресеты (--preset)."""
+    """Тексты для сценария latency: --text, --text-file или пресеты (--preset)."""
     if args.text:
         return [("custom", args.text)]
+    text_file = getattr(args, "text_file", None)
+    if text_file:
+        lines = [
+            line.strip()
+            for line in Path(text_file).read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        if not lines:
+            raise SystemExit(f"В файле {text_file} нет ни одной фразы (пустые строки и # пропускаются)")
+        return [(f"L{index}", line) for index, line in enumerate(lines, start=1)]
     names = [name.strip() for name in args.preset.split(",") if name.strip()]
     if "all" in names:
         return list(PRESETS.items())
@@ -709,6 +719,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="dispatch — диалог такси-диспетчера; latency — пресеты/произвольный текст; none — только sweep/конкуренция",
     )
     parser.add_argument("--text", default=None, help="Произвольный текст (вместо пресетов в latency)")
+    parser.add_argument(
+        "--text-file",
+        default=None,
+        help="Файл со списком фраз (по одной в строке, # — комментарий) для сценария latency",
+    )
     parser.add_argument("--preset", default="all", help="Пресеты latency: short, medium, long, all")
     parser.add_argument("--url", default=os.getenv("TERATTS_URL"), help="URL веб-демо для round-trip, например http://127.0.0.1:7860")
     parser.add_argument("--runs", type=int, default=3, help="Измеряемых прогонов на текст")

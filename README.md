@@ -161,6 +161,10 @@ docker compose run --rm bench bench.py --scenario none --sweep-threads 1,2,4,8
 # 3б. Сколько TTFC «стоит» нейросеть ударений RUAccent (full / dictionary / off)
 docker compose run --rm bench bench.py --scenario none --sweep-stress-modes
 
+# 3в. Замер набора коротких фраз за один запуск (одна загрузка модели).
+#     Фразы — по одной в строке в phrases.txt; правка файла не требует пересборки.
+./bench.sh bench.py --scenario latency --stream --text-file /data/phrases.txt --runs 5 --warmup 2
+
 # 4. Сколько одновременных звонков тянет сервер (каждая копия модели ~2 ГБ RAM)
 docker compose run --rm --memory 12g bench bench.py --scenario none --concurrency 3 --runs 2
 
@@ -256,6 +260,7 @@ print(tts.normalize_text("<ru>У меня 21 яблоко.</ru>"))
 | Порт 7860 занят | `--port 7861` |
 | Много RAM | `--stress-mode dictionary`, `TERATTS_THREADS=4`, не открывайте `teacher`-сэмплер |
 | Долгая загрузка/низкий xRT в Docker на Mac/Windows | Лимиты Docker VM (`--cpus/--memory`), а не VPS: замеряйте на самом сервере |
+| `-bash: !: event not found` | Bash разворачивает `!` в двойных кавычках: используйте одинарные — `--text '<ru>Здравствуйте!</ru>'` — либо файл фраз: `--text-file /data/phrases.txt` |
 | `Permission denied` при записи в `./out` | Папка принадлежит root (создана через `sudo`/Docker): `sudo chown 1000:1000 out` или запускайте `./bench.sh` |
 | `bench.py: error: unrecognized arguments: --sweep-...` | Образ собран до `git pull`: код копируется в образ, пересоберите — `docker compose build` (обёртка `./bench.sh` предупредит об этом сама) |
 | Модель уже скачана, но контейнер её «не видит» | Кэш в volume принадлежит другому uid (запускали то под root, то под пользователем): держитесь одного пользователя или удалите volume — `docker volume rm terattsv2_hf-cache` |
