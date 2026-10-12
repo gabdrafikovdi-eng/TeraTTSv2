@@ -18,6 +18,11 @@ services:
     volumes:
       - hf-cache:/models      # кэш модели (скачивается один раз)
       - ./out:/app/out        # отчёты JSON наружу
+    # uid/gid для записи в bind-mount ./out. На типичном Linux-VPS uid=1000
+    # совпадает с пользователем в образе — менять не нужно.
+    # Docker Desktop (macOS/Windows) мапит монтирование на root, поэтому там:
+    #   TERATTS_UID=0 TERATTS_GID=0 docker compose run --rm bench
+    user: "${TERATTS_UID:-1000}:${TERATTS_GID:-1000}"
     cpus: 4
     mem_limit: 6g
     # Для теста конкуренции нужна память под N копий модели:

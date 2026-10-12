@@ -92,9 +92,10 @@ cd /opt
 git clone https://github.com/gabdrafikovdi-eng/TeraTTSv2.git
 cd TeraTTSv2
 
-# 4. Папка для отчётов: Docker создаёт её от root, если её нет,
-#    и тогда uid 1000 внутри контейнера не сможет писать JSON
-mkdir -p out && chmod 777 out
+# 4. Папка для отчётов: контейнер работает под uid 1000, а bind-mount на Linux
+#    сохраняет владельца — на типичном VPS первый пользователь и есть uid 1000
+mkdir -p out
+id -u                      # если вывод не 1000 → sudo chown 1000:1000 out
 ```
 
 Обновление до последней версии с GitHub:
@@ -120,6 +121,14 @@ docker compose run --rm bench
 Повторные запуски можно делать без сети: добавьте `--offline` (`local_files_only`).
 Размер образа без модели ~1.9 ГБ; можно «запечь» модель внутрь:
 `docker build --build-arg PRELOAD=1 -t terattsv2:latest .`
+
+Права на `./out`: контейнер работает под uid 1000, поэтому каталог должен принадлежать
+uid 1000 (на типичном VPS это и есть ваш пользователь). Если uid другой — либо
+`sudo chown 1000:1000 out`, либо пересоберите образ под себя:
+`docker build --build-arg UID=$(id -u) -t terattsv2:latest .`.
+В Docker Desktop (macOS/Windows) монтирование мапится на root — там запускайте
+`TERATTS_UID=0 TERATTS_GID=0 docker compose run --rm bench`. Если JSON всё же не
+записался, скрипт не падает: все цифры уже напечатаны в консоли.
 
 ### 4.3. Команды для разных вопросов
 
