@@ -257,6 +257,7 @@ print(tts.normalize_text("<ru>У меня 21 яблоко.</ru>"))
 | Много RAM | `--stress-mode dictionary`, `TERATTS_THREADS=4`, не открывайте `teacher`-сэмплер |
 | Долгая загрузка/низкий xRT в Docker на Mac/Windows | Лимиты Docker VM (`--cpus/--memory`), а не VPS: замеряйте на самом сервере |
 | `Permission denied` при записи в `./out` | Папка принадлежит root (создана через `sudo`/Docker): `sudo chown 1000:1000 out` или запускайте `./bench.sh` |
+| `bench.py: error: unrecognized arguments: --sweep-...` | Образ собран до `git pull`: код копируется в образ, пересоберите — `docker compose build` (обёртка `./bench.sh` предупредит об этом сама) |
 | Модель уже скачана, но контейнер её «не видит» | Кэш в volume принадлежит другому uid (запускали то под root, то под пользователем): держитесь одного пользователя или удалите volume — `docker volume rm terattsv2_hf-cache` |
 | Файлы bind-mount не видны в контейнере (macOS) | Путь вне «расшаренных» каталогов Docker Desktop (например `/tmp`) — перенесите проект в `$HOME` |
 | Сборка образа качает CUDA-колёса | Уберите `--index-url https://download.pytorch.org/whl/cpu` только если нужен CUDA (по умолчанию он уже стоит) |
